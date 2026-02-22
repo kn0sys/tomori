@@ -1,0 +1,13 @@
+[package]
+name = "monero-l2-validator"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1.0", features = ["full"] }
+libp2p = { version = "0.53", features = ["tokio", "gossipsub", "mdns", "tcp", "noise", "yamux", "macros"] }
+rocksdb = "0.21"
+futures = "0.3"
+zeromq = "0.3" # Native async ZMQ for Rust
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
