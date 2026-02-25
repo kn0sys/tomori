@@ -1,10 +1,10 @@
 use rocksdb::{ColumnFamilyDescriptor, DB, Options};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use wincode::{decode, encode};
+use wincode::{SchemaRead, SchemaWrite};
 
 /// Represents an unconfirmed L2 transaction in Tomori
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SchemaRead, SchemaWrite)]
 pub struct L2Transaction {
     pub tx_hash: [u8; 32],
     pub curve_tree_proof: Vec<u8>, // The heavy mathematical proof
@@ -13,7 +13,7 @@ pub struct L2Transaction {
 }
 
 /// Represents a cached node in the Curve Tree
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SchemaRead, SchemaWrite)]
 pub struct TreeCacheNode {
     pub node_hash: [u8; 32],
     pub left_child: Option<[u8; 32]>,
@@ -21,7 +21,7 @@ pub struct TreeCacheNode {
 }
 
 /// Represents an L1 block and the L2 state anchored to it
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SchemaRead, SchemaWrite)]
 pub struct L1Anchor {
     pub l1_block_hash: [u8; 32],
     pub l1_height: u64,
@@ -47,7 +47,11 @@ impl TomoriDB {
         let cf_state = ColumnFamilyDescriptor::new("validator_state", Options::default());
         let cf_history = ColumnFamilyDescriptor::new("l1_history", Options::default());
 
-        let db = DB::open_cf_descriptors(&db_opts, path, vec![cf_mempool, cf_tree, cf_state])?;
+        let db = DB::open_cf_descriptors(
+            &db_opts,
+            path,
+            vec![cf_mempool, cf_tree, cf_state, cf_history],
+        )?;
 
         Ok(Self { db: Arc::new(db) })
     }
@@ -60,7 +64,7 @@ impl TomoriDB {
             .ok_or("CF mempool_txs not found")?;
 
         // Serialize the struct into bytes using wincode
-        let encoded_tx = encode(tx)?;
+        let encoded_tx = wincode::serialize(tx)?;
 
         self.db.put_cf(&cf, tx.tx_hash, encoded_tx)?;
         Ok(())
@@ -79,7 +83,7 @@ impl TomoriDB {
         match self.db.get_cf(&cf, tx_hash)? {
             Some(bytes) => {
                 // Deserialize the bytes back into our Rust struct
-                let tx: L2Transaction = decode(&bytes)?;
+                let tx: L2Transaction = wincode::deserialize(&bytes)?;
                 Ok(Some(tx))
             }
             None => Ok(None),
@@ -101,7 +105,7 @@ impl TomoriDB {
             .db
             .cf_handle("l1_history")
             .ok_or("CF l1_history not found")?;
-        let cf_mempool = self
+        let _cf_mempool = self
             .db
             .cf_handle("mempool_txs")
             .ok_or("CF mempool_txs not found")?;
@@ -112,7 +116,7 @@ impl TomoriDB {
 
             if let Some(bytes) = self.db.get_cf(&cf_history, height_bytes)? {
                 // Assuming wincode is still your standard serialization
-                let anchor: L1Anchor = wincode::decode(&bytes)?;
+                let anchor: L1Anchor = wincode::deserialize(&bytes)?;
 
                 // 2. Resurrect transactions: push them back to the mempool
                 for tx_hash in anchor.anchored_l2_txs {
@@ -136,6 +140,54 @@ impl TomoriDB {
 
     fn restore_state_snapshot(&self, _height: u64) -> Result<(), Box<dyn std::error::Error>> {
         // Implementation for swapping the active RocksDB state CF with the backed-up snapshot
+        Ok(())
+    }
+
+    /// Helper to fetch just the block hash from a stored L1Anchor
+    pub fn get_l1_hash_at_height(
+        &self,
+        height: u64,
+    ) -> Result<Option<[u8; 32]>, Box<dyn std::error::Error>> {
+        let cf_history = self
+            .db
+            .cf_handle("l1_history")
+            .ok_or("CF l1_history not found")?;
+        let height_bytes = height.to_be_bytes();
+
+        match self.db.get_cf(&cf_history, height_bytes)? {
+            Some(bytes) => {
+                let anchor: L1Anchor = wincode::deserialize(&bytes)?;
+                Ok(Some(anchor.l1_block_hash))
+            }
+            None => Ok(None),
+        }
+    }
+
+    /// Sweeps the mempool column family and returns all pending L2 transactions
+    pub fn get_all_mempool_txs(&self) -> Result<Vec<L2Transaction>, Box<dyn std::error::Error>> {
+        let cf = self.db.cf_handle("mempool_txs").ok_or("CF mempool_txs not found")?;
+        
+        let mut txs = Vec::new();
+        // Create an iterator starting from the first key in the CF
+        let iter = self.db.iterator_cf(&cf, rocksdb::IteratorMode::Start);
+
+        for item in iter {
+            // item is a Result<(Box<[u8]>, Box<[u8]>), rocksdb::Error>
+            let (_key, value) = item?;
+            
+            // Decode the value bytes back into our L2Transaction struct
+            let tx: L2Transaction = wincode::deserialize(&value)?;
+            txs.push(tx);
+        }
+
+        Ok(txs)
+    }
+
+    /// Removes a transaction from the mempool (used after anchoring or if invalid)
+    pub fn delete_mempool_tx(&self, tx_hash: &[u8; 32]) -> Result<(), Box<dyn std::error::Error>> {
+        let cf = self.db.cf_handle("mempool_txs").ok_or("CF mempool_txs not found")?;
+        
+        self.db.delete_cf(&cf, tx_hash)?;
         Ok(())
     }
 }

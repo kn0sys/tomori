@@ -1,9 +1,7 @@
 use futures::stream::StreamExt;
 use libp2p::{
-    core::upgrade,
-    identity, noise,
-    swarm::{SwarmBuilder, SwarmEvent},
-    tcp, yamux, Multiaddr, PeerId,
+    Multiaddr, PeerId, SwarmBuilder, core::upgrade, gossipsub, identity, mdns, noise,
+    swarm::SwarmEvent, tcp, yamux,
 };
 use std::error::Error;
 
@@ -21,7 +19,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let daemon_zmq_addr = "tcp://127.0.0.1:38081";
 
     tokio::spawn(async move {
-        if let Err(e) = l1_bridge::start_zmq_listener(daemon_zmq_addr).await {
+        if let Err(e) = tomori::l1_bridge::start_zmq_listener(daemon_zmq_addr).await {
             eprintln!("ZMQ Listener crashed: {}", e);
         }
     });

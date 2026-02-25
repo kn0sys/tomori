@@ -1,5 +1,4 @@
 use serde::Deserialize;
-use serde_json::Value;
 use std::error::Error;
 use zeromq::{Socket, SocketRecv, SubSocket};
 
@@ -43,9 +42,8 @@ pub async fn start_zmq_listener(daemon_address: &str) -> Result<(), Box<dyn Erro
             continue; // Ignore malformed messages
         }
 
-        let topic_bytes = msg.pop_front().unwrap();
-        let payload_bytes = msg.pop_front().unwrap();
-
+        let topic_bytes = msg.get(0).expect("Missing topic frame");
+        let payload_bytes = msg.get(1).expect("Missing payload frame");
         let topic = String::from_utf8_lossy(&topic_bytes);
         let payload_str = String::from_utf8_lossy(&payload_bytes);
 
