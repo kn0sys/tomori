@@ -1,7 +1,6 @@
 use futures::stream::StreamExt;
 use libp2p::{
-    Multiaddr, PeerId, SwarmBuilder, core::upgrade, gossipsub, identity, mdns, noise,
-    swarm::SwarmEvent, tcp, yamux,
+    PeerId, SwarmBuilder, gossipsub, identity, mdns, noise, swarm::SwarmEvent, tcp, yamux,
 };
 use std::error::Error;
 

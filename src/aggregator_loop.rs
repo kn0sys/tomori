@@ -1,6 +1,15 @@
 use crate::l2_mempool::{L2Transaction, TomoriDB};
+use crate::rpc;
 use std::sync::Arc;
 use tokio::time::{Duration, sleep};
+
+/// Calculates the state root of the aggregated payload.
+/// TODO: implement a real
+/// Merkle tree using a crate like `tiny-keccak` (since Monero uses Keccak) or `blake3`.
+fn calculate_merkle_root(_payload: &[u8]) -> [u8; 32] {
+    // Returning a dummy 32-byte array to satisfy the compiler for now
+    [0u8; 32]
+}
 
 /// The main loop for the L2 Block Producer / Aggregator
 pub async fn start_aggregator_engine(db: Arc<TomoriDB>) {
@@ -48,7 +57,21 @@ pub async fn start_aggregator_engine(db: Arc<TomoriDB>) {
         }
 
         // 2. Aggregation Phase
-        let _aggregated_payload = aggregate_proofs(&valid_txs);
+        let aggregated_payload = aggregate_proofs(&valid_txs);
+        let state_root = calculate_merkle_root(&aggregated_payload);
+
+        let wallet_url = "http://127.0.0.1:38083/json_rpc"; // Default stagenet wallet RPC
+        let validator_addr = "55LJ9... (your stagenet address)";
+
+        match rpc::anchor_l2_batch_to_l1(wallet_url, &state_root, validator_addr).await {
+            Ok(_l1_tx_hash) => {
+                // 3. Broadcast the heavy payload to the L2 P2P network so peers can sync
+                // libp2p_swarm.behaviour_mut().gossipsub.publish(topic, aggregated_payload);
+
+                // 4. Update local RocksDB history with the new anchor
+            }
+            Err(e) => eprintln!("Failed to anchor batch to L1: {}", e),
+        }
 
         // 3. Local State Update & L1 Prep
         println!(

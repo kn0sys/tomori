@@ -36,7 +36,7 @@ pub async fn start_zmq_listener(daemon_address: &str) -> Result<(), Box<dyn Erro
     // The listener loop
     loop {
         // Monero sends ZMQ messages as multipart: [Topic, Payload]
-        let mut msg = socket.recv().await?;
+        let msg = socket.recv().await?;
 
         if msg.len() < 2 {
             continue; // Ignore malformed messages

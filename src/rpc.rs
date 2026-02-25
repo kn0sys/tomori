@@ -1,3 +1,4 @@
+use hex;
 use reqwest::Client;
 use serde_json::json;
 use std::error::Error;
@@ -73,4 +74,56 @@ pub async fn find_common_ancestor(
 
         current_local_height -= 1;
     }
+}
+
+/// Anchors the L2 State Root to the Monero Stagenet
+pub async fn anchor_l2_batch_to_l1(
+    wallet_rpc_url: &str,
+    l2_state_root: &[u8; 32], // The 32-byte hash of your aggregated payload
+    validator_address: &str,  // Your validator's own stagenet address
+) -> Result<String, Box<dyn Error>> {
+    println!("⚓ Anchoring Tomori State Root to Monero L1...");
+
+    let client = Client::new();
+
+    // We embed the 32-byte state root into the transaction as a payment_id.
+    // This permanently etches the hash into the Monero blockchain without bloat.
+    let payment_id = hex::encode(l2_state_root);
+
+    let req_body = json!({
+        "jsonrpc": "2.0",
+        "id": "tomori-anchor",
+        "method": "transfer",
+        "params": {
+            "destinations": [{
+                // We send a dust amount of XMR back to ourselves just to
+                // broadcast the transaction and etch the payment_id
+                "amount": 10_000,
+                "address": validator_address
+            }],
+            "payment_id": payment_id,
+            "get_tx_key": true,
+            "priority": 1 // Normal fee priority
+        }
+    });
+
+    let res: serde_json::Value = client
+        .post(wallet_rpc_url)
+        .json(&req_body)
+        .send()
+        .await?
+        .json()
+        .await?;
+
+    if let Some(error) = res.get("error") {
+        return Err(format!("Wallet RPC Error: {}", error).into());
+    }
+
+    let tx_hash = res["result"]["tx_hash"]
+        .as_str()
+        .ok_or("Failed to parse L1 transaction hash from response")?;
+
+    println!("✅ L2 Batch Successfully Anchored! L1 TX Hash: {}", tx_hash);
+
+    Ok(tx_hash.to_string())
 }
