@@ -14,8 +14,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let local_peer_id = PeerId::from(local_key.public());
     println!("Local validator PeerId: {}", local_peer_id);
 
-    // Standard Monero stagenet ZMQ port is usually 38081
-    let daemon_zmq_addr = "tcp://127.0.0.1:38081";
+    // Standard Monero stagenet ZMQ port is usually 38082
+    let daemon_zmq_addr = "tcp://127.0.0.1:4649";
 
     tokio::spawn(async move {
         if let Err(e) = tomori::l1_bridge::start_zmq_listener(daemon_zmq_addr).await {
@@ -35,7 +35,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .build();
 
     // Listen on all interfaces, random port
-    swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
+    swarm.listen_on("/ip4/0.0.0.0/tcp/35255".parse()?)?;
 
     // The core event loop
     loop {

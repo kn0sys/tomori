@@ -20,7 +20,7 @@ pub struct TxpoolNotification {
 
 pub async fn start_zmq_listener(daemon_address: &str) -> Result<(), Box<dyn Error>> {
     println!(
-        "Starting Tomori L1 Bridge: Connecting to Monero daemon at {}",
+        "Starting Tomori L1 Bridge: Connecting to Monero daemon ZMQ at {}",
         daemon_address
     );
 

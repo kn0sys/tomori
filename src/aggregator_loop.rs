@@ -61,7 +61,7 @@ pub async fn start_aggregator_engine(db: Arc<TomoriDB>) {
         let state_root = calculate_merkle_root(&aggregated_payload);
 
         let wallet_url = "http://127.0.0.1:38083/json_rpc"; // Default stagenet wallet RPC
-        let validator_addr = "55LJ9... (your stagenet address)";
+        let validator_addr = "";
 
         match rpc::anchor_l2_batch_to_l1(wallet_url, &state_root, validator_addr).await {
             Ok(_l1_tx_hash) => {
